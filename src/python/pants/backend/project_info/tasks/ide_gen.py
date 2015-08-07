@@ -22,6 +22,7 @@ from pants.base.exceptions import TaskError
 from pants.binaries import binary_util
 from pants.build_graph.address import BuildFileAddress
 from pants.build_graph.resources import Resources
+from pants.fs.fs import safe_filename
 from pants.util.dirutil import safe_mkdir, safe_walk
 
 
@@ -260,7 +261,8 @@ class IdeGen(IvyTaskMixin, NailgunTask):
 
     def jarname(target):
       """Creates a safe jar name based on the target artifact info"""
-      _, id_, _ = target.get_artifact_info()
+      jar_dep, exported = target.get_artifact_info()
+      id_ = "{}-{}".format(jar_dep.org, jar_dep.name) if exported else target.identifier
       # Cap jar names quite a bit lower than the standard fs limit of 255 characters since these
       # artifacts will often be used outside pants and those uses may manipulate (expand) the jar
       # filenames blindly.
@@ -275,8 +277,7 @@ class IdeGen(IvyTaskMixin, NailgunTask):
       if not base.startswith(self.get_options().pants_workdir):
         raise IdeGen.Error('Internal {} jar was not located under the pants workdir: {}/{}'
                                   % (target, base, jar))
-      rel_base = os.path.relpath(base, self.get_options().pants_workdir)
-      cp_jar = os.path.join(dest, rel_base, jarname(target))
+      cp_jar = os.path.join(dest, jarname(target))
       safe_mkdir(os.path.dirname(cp_jar))
       shutil.copy(os.path.join(base, jar), cp_jar)
       return cp_jar
